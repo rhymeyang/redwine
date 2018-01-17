@@ -1,0 +1,684 @@
+---
+title: "红酒数据集研究"
+output: html_document
+# output:
+#   html_document:
+#     toc: true
+#     theme: united
+---
+
+
+
+数据来源 [Cortez et al., 2009]. 
+
+
+P. Cortez, A. Cerdeira, F. Almeida, T. Matos and J. Reis. 
+Modeling wine preferences by data mining from physicochemical properties.
+
+In Decision Support Systems, Elsevier, 47(4):547-553. ISSN: 0167-9236.
+
+## 数据集变量
+
++ fixed.acidity：该变量指的是葡萄酒中的固定或者非挥发性酸度
++ volatile.acidity：挥发酸，葡萄酒中的醋酸含量过高，会导致醋的味道不愉快。
++ citric.acid：柠檬酸，柠檬酸含量小，能给葡萄酒增添新鲜感和风味。
++ residual.sugar：剩余糖分，发酵结束后剩下的糖分，很少发现低于1克/升的葡萄酒，超过45克/升的葡萄酒被认为是甜的。
++ chlorides：含盐量。
++ free.sulfur.dioxide：酒中带硫元素的离子，它可以防止微生物的生长和葡萄酒的氧化。
++ total.sulfur.dioxide:二氧化硫，低浓度时检测不到，当浓度超过50 ppm时用鼻子可以闻到。
++ density：密度，大致接近于水，具体取决于酒精和糖的含量。
++ pH：用于描述酒的酸碱度。
++ sulphates：硫酸盐，葡萄酒的添加剂，用于控制二氧化硫比例。
++ alcohol：酒精浓度。
++ quality：红酒质量，从0到10分不等。
+
+## 数据集描述
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dynamInstall <- function(pkg.name) {
+      if (!(pkg.name %in% installed.packages())){
+        install.packages(pkg.name, dependencies = T)
+      } else{
+        # message("not need install ", pkg.name)
+      }
+      invisible(pkg.name)
+}
+
+checkNormal <- function(val.check) {
+  set.seed(2018)
+  
+  rst <- ks.test(val.check, rnorm(length(val.check), mean= mean(val.check), sd = sd(val.check)), exact = F, alternative = 'two.sided')
+  
+  final <- c(isNormal=as.character(rst[['p.value']]>=0.05), method = rst[['method']],alternative = rst[['alternative']], p.value= as.character(signif(rst[['p.value']],digits = 4)))
+  
+  if(final['p.value'] == '0'){
+    final['p.value'] <- '< 2.2e-16'
+  }
+  return (final)
+}
+
+localSummary <- function(val.check){
+  c(Min=min(val.check),quantile(x = val.check, probs = c(0.025, 0.25, 0.5, 0.75, 0.975)), Max=max(val.check))
+}
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+dynamInstall('ggplot2')
+dynamInstall('GGally')
+dynamInstall('knitr')
+dynamInstall('dplyr')
+library(ggplot2)
+library(knitr)
+library(dplyr)
+library(GGally)
+
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE)
+
+winedf <- read.csv('wineQualityReds.csv', row.names=1)
+
+winedf$quality <- factor(winedf$quality, levels = sort(unique(winedf$quality)))
+```
+
+```{r}
+dim(winedf)
+```
+
+```{r}
+str(winedf)
+```
+
+```{r}
+summary(winedf)
+```
+
+是否有空值
+
+```{r}
+any(sapply(winedf, function(x){any(is.na(x))}))
+```
+
+数据集有12个变量，1599条记录
+
+## 单变量分析
+
+### 红酒质量
+
+```{r}
+ggplot(aes(x=winedf$quality), data = winedf) + 
+  geom_bar(fill ='blue', color = 'grey') +
+  xlab('quality')
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+qqnorm(as.numeric(winedf$quality))
+qqline(as.numeric(winedf$quality)) 
+```
+
+>红酒质量 __符合正态分布__, 质量特别好的红酒和质量特比差的红酒数量相对较少。最多的是质量中等的红酒。
+
+### 酒精浓度
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+ggplot(aes(x=winedf$alcohol), data = winedf) + 
+  geom_histogram(bins = 35, fill ='blue', color = 'grey') +
+  xlab('alcohol')
+```
+
+
+```{r}
+localSummary(winedf$alcohol)
+```
+
+>95%的红酒中的酒精浓度分布在9.1~12.8之间,分布比较集中,过高过低酒精含量的红酒都比较罕见。
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+checkNormal(winedf$alcohol)
+```
+
+>p-value<0.05, 酒精浓度 __不符合正态分布__
+
+### 硫酸盐
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=winedf$sulphates), data = winedf) + 
+  geom_histogram(bins = 35, fill ='blue', color = 'grey') +
+  xlab('sulphates')
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+localSummary(winedf$sulphates)
+```
+
+>95%的红酒中的硫酸盐添加剂分布在0.44~1.08之间。
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+checkNormal(winedf$sulphates)
+```
+
+
+>p-value<0.05, 硫酸盐添加剂 __不符合正态分布__
+
+
+### pH
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=winedf$pH), data = winedf) + 
+  geom_histogram(widths = 0.05, fill ='blue', color = 'grey') +
+  xlab('PH')
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+localSummary(winedf$pH)
+```
+
+>95%的红酒中的pH分布在3.02~3.61之间, 大部分红酒是弱酸性的。
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+checkNormal(winedf$pH)
+```
+
+>p-value>0.05, pH __符合正态分布__
+
+### 密度
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=winedf$density), data = winedf) + 
+  geom_histogram(bins = 30, fill ='blue', color = 'grey') +
+  xlab('density')
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+localSummary(winedf$density)
+```
+
+>密度与水十分接近，存在微小的差距。
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+checkNormal(winedf$density)
+```
+
+>p-value>0.05, 密度 __符合正态分布__
+
+
+### 二氧化硫
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=winedf$total.sulfur.dioxide), data = winedf) + 
+  geom_histogram(bins = 30, fill ='blue', color = 'grey') +
+  xlab('total sulfur dioxide')
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+localSummary(winedf$total.sulfur.dioxide)
+```
+
+>95%的红酒中二氧化硫含量集中在10~131之间。
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+checkNormal(winedf$total.sulfur.dioxide)
+```
+
+>p-value<0.05, 二氧化硫含量 __不符合正态分布__
+
+
+### 带硫元素的离子
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=winedf$free.sulfur.dioxide), data = winedf) + 
+  geom_histogram(bins = 30, fill ='blue', color = 'grey') +
+  scale_x_log10() +
+  xlab('log free sulfur dioxide')
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+localSummary(winedf$free.sulfur.dioxide)
+```
+
+
+>95%的红酒中带硫元素的离子含量在3.00~40.53之间。
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+checkNormal(winedf$free.sulfur.dioxide)
+```
+
+>p-value<0.05, 硫元素的离子含量 __不符合正态分布__
+
+
+### 非挥发性酸
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=winedf$fixed.acidity), data = winedf) + 
+  scale_x_continuous(breaks = seq(4,16,2)) +
+  geom_histogram(binwidth = .5, fill ='blue', color = 'grey') +
+  xlab('fixed acidity') 
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+localSummary(winedf$fixed.acidity)
+```
+
+>95%的红酒中非挥发性酸含量在5.6~12.5之间。
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+checkNormal(winedf$fixed.acidity)
+```
+
+>p-value<0.05, 非挥发性酸 __不符合正态分布__
+
+
+### 挥发酸
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=winedf$volatile.acidity), data = winedf) + 
+  scale_x_continuous(breaks = seq(0,1.6,0.2)) +
+  geom_histogram(binwidth = 0.05, fill ='blue', color = 'grey') +
+  xlab('volatile acidity')
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+localSummary(winedf$volatile.acidity)
+```
+
+>95%的红酒挥发酸的含量主要集中在0.24~0.92
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+checkNormal(winedf$volatile.acidity)
+```
+
+>p-value<0.05, 挥发性酸 __不符合正态分布__
+
+
+### 柠檬酸
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=winedf$citric.acid), data = winedf) + 
+  scale_x_continuous(seq(min(winedf$citric.acid), max(winedf$citric.acid),0.05)) +
+  geom_histogram(bins = 30, fill ='blue', color = 'grey') +
+  xlab('citric acid')
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+localSummary(winedf$citric.acid)
+```
+
+>95%的红酒柠檬酸的含量集中在0.00~0.66
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+checkNormal(winedf$citric.acid)
+```
+
+
+>p-value<0.05, 柠檬酸 __不符合正态分布__
+
+
+### 剩余糖分
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=winedf$residual.sugar), data = winedf) + 
+  geom_histogram(bins = 30, fill ='blue', color = 'grey') +
+  xlab('residual sugar')
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+localSummary(winedf$residual.sugar)
+```
+
+>95%的红酒剩余糖分的含量集中在1.4~6.3
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+checkNormal(winedf$residual.sugar)
+```
+
+>p-value<0.05, 剩余糖分 __不符合正态分布__
+
+
+### 含盐量
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=winedf$chlorides), data = winedf) + 
+  geom_histogram(bins = 30, fill ='blue', color = 'grey') +
+  xlab('chlorides')
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+localSummary(winedf$chlorides)
+```
+
+>95%的红酒含盐量集中在0.048~0.205
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+checkNormal(winedf$chlorides)
+```
+
+>p-value<0.05, 含盐量 __不符合正态分布__
+
+
+## 双变量分析
+
+### 矩阵图
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+numset <- winedf
+numset$quality <-as.numeric(winedf$quality)
+ggpairs(numset,
+  lower = list(continuous = wrap("points", shape = I('.'))),
+  upper = list(combo = wrap("box", outlier.shape = I('.')))) +
+  theme_grey(base_size = 8)
+
+```
+
+>相关性大于0.4:
+>
+>+ quality & alcohol: 0.476
+>+ alcohol & density: -0.496
+>+ density & fixed.acidity: 0.668
+>+ citric.acid & fixed.acidity: 0.672
+>+ total.sulfur.dioxide & free.sulfur.dioxide : 0.668
+>+ pH & fixed.acidity: -0.683
+>+ pH & citric.acid: -0.542
+
+### 红酒质量 & 酒精浓度
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x= quality, y= alcohol), data= winedf)+
+  geom_point(alpha = 1/5, size = 1, color='blue', position = 'jitter') +
+  geom_boxplot(alpha = 0.3,color = '#F79420') + 
+  stat_summary(fun.y = "mean", 
+      geom = "point", 
+      color = "red") + 
+  geom_smooth(method='lm', aes(group = 1))+
+  labs(x='Quality', y='Alcohol') +
+  ggtitle('Quality & Alcohol')
+  # theme(axis.title.x = element_text(size = rel(.8)),
+  #       axis.title.y = element_text(size = rel(.8)),
+  #       title = element_text(size = rel(.8)))
+
+```
+
+
+> 酒精浓度越高对应的红酒质量大概率会更高。
+  
+  
+### 挥发酸 & 红酒质量
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x= quality, y= volatile.acidity), data= winedf)+
+  geom_point(alpha = 1/5, size = 1, color='blue', position = 'jitter') +
+  geom_boxplot(alpha = 0.3,color = '#F79420') + 
+  stat_summary(fun.y = "mean", 
+      geom = "point", 
+      color = "red") + 
+  geom_smooth(method='lm', aes(group = 1))+
+  labs(x='Quality', y='Volatile Acidity') +
+  ggtitle('Quality & Volatile Acidity')
+```
+
+>+ 红酒质量评分低于7时,挥发酸含量越低，红酒质量越高
+>+ 红酒质量评分为7、8时，挥发酸含量影响不大
+
+### 酒精浓度 & 密度
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x= alcohol, y= density), data= winedf)+
+  geom_point(alpha = 1/5, size = 1, color='blue', position = 'jitter') +
+  geom_smooth(method = 'lm', color='#F79420') + 
+  labs(x='Alcohol', y='Density') + 
+  ggtitle('Alcohol & Density')
+```
+
+>由图可知，酒精浓度越高，密度越低
+
+### 非挥发性酸 & 密度
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x= fixed.acidity, y= density), data= winedf)+
+  geom_point(alpha = 1/5, size = 1, color='blue', position = 'jitter') +
+  geom_smooth(method = 'lm', color='#F79420') + 
+  labs(x='Fixed Acidity', y='Density') + 
+  ggtitle('Fixed Acidity & Density')
+```
+
+
+> 由图可知，非挥发性酸含量越高，密度越大
+
+### 非挥发性酸 & 柠檬酸
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x= fixed.acidity, y= citric.acid), data= winedf)+
+  geom_point(alpha = 1/5, size = 1, color='blue', position = 'jitter') +
+  geom_smooth(method = 'lm', color='#F79420') + 
+  labs(x='Fixed Acidity', y='Citric Acid') + 
+  ggtitle('Fixed Acidity & Citric Acid')
+```
+
+> 由图可知，非挥发性酸含量越高，柠檬酸含量越高
+
+### 二氧化硫 & 硫元素离子
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x= total.sulfur.dioxide, y= free.sulfur.dioxide), data= winedf)+
+  geom_point(alpha = 1/5, size = 1, color='blue', position = 'jitter') +
+  geom_smooth(method = 'lm', color='#F79420') + 
+  labs(x='Total Sulfur Dioxide', y='Free Sulfur Dioxide') + 
+  ggtitle('Total Sulfur Dioxide & Free Sulfur Dioxide')
+```
+
+> 由图可知，二氧化硫含量越高，硫元素离子含量越高
+
+### 非挥发性酸 & pH
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x= fixed.acidity, y= pH), data= winedf)+
+  geom_point(alpha = 1/5, size = 1, color='blue', position = 'jitter') +
+  geom_smooth(method = 'lm', color='#F79420') + 
+  labs(x='Fixed Acidity', y='pH') + 
+  ggtitle('Fixed Acidity & pH')
+```
+
+>由图可知，非挥发性酸越高，pH越低
+
+### 柠檬酸 & pH
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x= citric.acid, y= pH), data= winedf)+
+  geom_point(alpha = 1/5, size = 1, color='blue', position = 'jitter') +
+  geom_smooth(method = 'lm', color='#F79420') + 
+  labs(x='Citric Acidity', y='pH') + 
+  ggtitle('Citric Acidity & pH')
+```
+
+>由图可知，柠檬酸越高，pH越低
+
+## 多变量分析
+
+### 酒精浓度 & 密度
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# ggplot(aes(x=alcohol, y = density), data = winedf) + 
+#   geom_point(aes(color = quality),alpha = 1, size = 1, position = 'jitter') +
+#   scale_color_brewer(palette = "Blues",
+#                      guide = guide_legend(reverse = T,
+#                                           override.aes = list(alpha = 1, size = 2))) +
+#   geom_smooth(method = "lm", se = FALSE, aes(group = quality, color = quality), size = 1) + 
+#   labs(x = 'Alcohol', y= "Density", color="Quality") + 
+#   ggtitle("Alcohol & Density")
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=alcohol, y = density), data = winedf) + 
+  geom_point(aes(color = quality), size =1, alpha = 1, position = "jitter")+
+  scale_x_continuous(breaks = seq(8,16,1)) +
+  scale_color_brewer(type= "div",
+                     palette = 1,
+                     guide = guide_legend(reverse = T,
+                                          override.aes = list(alpha = 1, size = 2))) +
+  facet_wrap(~quality) +
+  geom_smooth(method = "lm", color='#F79420') + 
+  labs(x = 'Alcohol', y= "Density", color="Quality") + 
+  ggtitle("Alcohol & Density")
+
+```
+
+>+ 质量最高的红酒, 酒精含量在9.5~14之间
+>+ 不同质量的红酒, 酒精量和密度均成反比
+
+
+### 非挥发性酸 & 密度
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x= fixed.acidity, y= density), data= winedf)+
+  geom_point(aes(color = quality), size =1, alpha = 1, position = "jitter")+
+  scale_x_continuous(breaks = seq(4,16,2)) +
+  scale_color_brewer(type= "div",
+                     palette = 1,
+                     guide = guide_legend(reverse = T,
+                                          override.aes = list(alpha = 1, size = 2))) +
+  facet_wrap(~quality) +
+  geom_smooth(method = "lm", color='#F79420') + 
+  labs(x='Fixed Acidity', y='Density', color="Quality") + 
+  ggtitle('Fixed Acidity & Density')
+```
+
+>+ 质量最高的红酒,非挥发性酸含量在5~13之间
+>+ 质量最高的红酒,密度均小于1
+
+### 非挥发性酸 & 柠檬酸
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x= fixed.acidity, y= citric.acid), data= winedf)+
+  geom_point(aes(color = quality), size =1, alpha = 1, position = "jitter")+
+  scale_x_continuous(breaks = seq(4,16,2)) +
+  scale_color_brewer(type= "div",
+                     palette = 1,
+                     guide = guide_legend(reverse = T,
+                                          override.aes = list(alpha = 1, size = 2))) +
+  facet_wrap(~quality) +
+  geom_smooth(method = "lm", color='#F79420') + 
+  labs(x='Fixed Acidity', y='Citric Acid', color="Quality") + 
+  ggtitle('Fixed Acidity & Citric Acid')
+```
+
+>质量最高的红酒, 柠檬酸占据整个柠檬酸值范围，说明柠檬酸含量和红酒质量没有关系
+
+### 二氧化硫 & 硫元素离子
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x= total.sulfur.dioxide, y= free.sulfur.dioxide), data= winedf)+
+  geom_point(aes(color = quality), size =1, alpha = 1, position = "jitter") +
+  scale_x_continuous(breaks = seq(0, 300,50), lim = c(0, 300)) +
+  scale_color_brewer(type= "div",
+                     palette = 1,
+                     guide = guide_legend(reverse = T,
+                                          override.aes = list(alpha = 1, size = 2))) +
+  facet_wrap(~quality) +
+  geom_smooth(method = "lm", color='#F79420') + 
+  labs(x='Total Sulfur Dioxide', y='Free Sulfur Dioxide', color="Quality") + 
+  ggtitle('Total Sulfur Dioxide & Free Sulfur Dioxide') + 
+  theme(axis.text.x = element_text(size = rel(.8)))
+```
+
+>+ 质量最高的红酒(quality 8), 二氧化硫含量均低于100
+>+ 质量其次的红酒(quality 7),二氧化硫含量有两个异常值，接近300， 其他在106以内
+>+ 红酒质量和二氧化硫含量没有相关性
+
+### 非挥发性酸 & pH
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x= fixed.acidity, y= pH), data= winedf)+
+  geom_point(aes(color = quality), size =1, alpha = 1, position = "jitter") +
+  scale_y_continuous(breaks = seq(2.5, 4.5,0.5)) +
+  scale_color_brewer(type= "div",
+                     palette = 1,
+                     guide = guide_legend(reverse = T,
+                                          override.aes = list(alpha = 1, size = 2))) +
+  facet_wrap(~quality) +
+  geom_smooth(method = 'lm', color='#F79420') + 
+  labs(x='Fixed Acidity', y='pH', color="Quality") + 
+  ggtitle('Fixed Acidity & pH')
+```
+
+>+ 质量最高的红酒, pH值在2.8~3.8之间,在整个取值区间，基本均匀分布
+>+ 质量最低的红酒, pH值在3.16~3.63之间,比较集中
+>+ 红酒质量和pH值没有相关性
+
+### 挥发酸 & 酒精浓度
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=alcohol, y = volatile.acidity), data = winedf) +
+  geom_point(aes(color = quality),alpha = 1, size = 1, position = 'jitter') +
+  scale_color_brewer(type = "div",
+                     guide = guide_legend(reverse = T,
+                                          override.aes = list(alpha = 1, size = 2))) +
+  geom_smooth(method = "lm", se = FALSE, aes(group = quality, color = quality), size = 1) +
+  labs(x = 'Alcohol', y= "Volatile Acidity", color="Quality") +
+  ggtitle("Alcohol & Volatile Acidity")
+
+```
+
+>挥发性酸不高，酒精浓度不低的情况下，红酒质量比较好。
+
+## 最终汇总
+
+### 质量分布
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=winedf$quality), data = winedf) + 
+  geom_bar(fill ='blue', color = 'grey') +
+  labs(x = 'Quality', y = "Count") + 
+  ggtitle("Quality Distribution")
+```
+
+>大部分评分集中在5和6，高分低分都比较少。
+
+### 红酒质量 & 酒精浓度
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x= quality, y= alcohol), data= winedf)+
+  geom_point(alpha = 1/5, size = 1, color='blue', position = 'jitter') +
+  geom_boxplot(alpha = 0.3,color = '#F79420') + 
+  stat_summary(fun.y = "mean", 
+      geom = "point", 
+      color = "red") + 
+  geom_smooth(method='lm', aes(group = 1))+
+  labs(x='Quality', y='Alcohol') +
+  ggtitle('Quality & Alcohol')
+```
+
+>较高质量的红酒有相对较高的酒精浓度。
+
+### 挥发酸 & 酒精浓度
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=alcohol, y = volatile.acidity), data = winedf) +
+  geom_point(aes(color = quality),alpha = 1, size = 1, position = 'jitter') +
+  scale_color_brewer(type = "div",
+                     guide = guide_legend(reverse = T,
+                                          override.aes = list(alpha = 1, size = 2))) +
+  geom_smooth(method = "lm", se = FALSE, aes(group = quality, color = quality), size = 1) +
+  labs(x = 'Alcohol', y= "Volatile Acidity", color="Quality") +
+  ggtitle("Alcohol & Volatile Acidity")
+
+```
+
+>挥发性酸不高，酒精浓度不低的情况下，红酒质量比较好。
+
+## 反思
+
+整个分析过程主要围绕红酒质量和与他相关度较高的几个变量进行分析，分析过程中也分析了一些其他的变量。
+
+始终没有发现某一化学物质和红酒质量有强相关性。初步分析时由于挥发性酸和质量间的相关性为0.39<0.4，没有分析这个变量，后来尝试分析，得到更多有意义的结论。
+
+分析过程，不必要有精确条件才开始分析，接近的条件，也可尝试分析。
